@@ -29,7 +29,7 @@ def Add_Residual_Set(x, out_depth, size, num_sets):
 
 
 def Darknet():
-    inputs = keras.Input(shape = (448,448,3))
+    inputs = keras.Input(shape = (512,512,3))
     x = inputs
     x = Add_Convolutional_Layer(x, 32, 3)
     x = Add_Convolutional_Layer(x, 64, 3, 2)
@@ -47,10 +47,36 @@ def Darknet():
     x = Add_Convolutional_Layer(x, 1024, 3, 2)
     x = Add_Residual_Set(x, 1024, 3, 4)
 
-    model = keras.Model(inputs = inputs, outputs = x)
+    x = layers.AveragePooling2D()(x)
+    model = keras.Model(inputs = inputs, outputs = x, name = 'Darknet')
     return model
 
-dn = Darknet()
 
-keras.utils.plot_model(dn, 'darknet.png')
+def Output(num_classes):
+    inputs = keras.Input(shape = (8, 8, 1024))
+    x = inputs
+    x = layers.Flatten()(x)
+    x = layers.Dense(1024)(x)
+    x = layers.Dense(8*8*(2+2+1+num_classes))(x)
+    x = layers.Reshape(target_shape = (8, 8, (2+2+1+num_classes)))(x)
+
+    model = keras.Model(inputs = inputs, outputs = x, name = 'Output')
+    return model
+
+
+def Yolo(num_classes):
+    inputs = keras.Input(shape = (512, 512, 3))
+    x = inputs
+    x = Darknet()(x)
+    x = Output(num_classes)(x)
+
+    model = keras.Model(inputs = inputs, outputs = x, name = 'YOLO')
+    return model
+
+
+yolo = Yolo(30)
+
+keras.utils.plot_model(yolo.get_layer(index = 1), 'Darknet.png', show_shapes = True)
+keras.utils.plot_model(yolo.get_layer(index = 2), 'Output.png', show_shapes = True)
+keras.utils.plot_model(yolo, 'Yolo.png', show_shapes = True)
     
