@@ -4,7 +4,7 @@ import tensorflow.keras.layers as layers
 
 
 NUM_BOXES = 2
-NUM_CLASSES = 30
+NUM_CLASSES = 601
 
 
 def Add_Convolutional_Layer(x, depth, size, stride = 1, batch_norm=True):
