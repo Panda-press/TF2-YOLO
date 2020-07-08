@@ -6,6 +6,7 @@ import numpy as np
 from os import walk
 import Models
 import Loss
+from PIL import Image
 
 
 stage = 3
@@ -18,14 +19,27 @@ if stage == 1:
 
 elif stage == 3:
 
-    batch_size = 64
-
+    batch_size = 2
+    
     model = Models.Yolo(2, 601)
 
     def GetYoloPosition(posRatio):
         gridsquare = (8*posRatio)//1
         gridpos = (8*posRatio) - gridsquare
         return int(gridsquare), gridpos
+
+    def Get_Batch_Images(Position):
+        path = "D:\Dataset\OpenImage/train/train_0_p"
+        images = []
+        files = []
+        for (dirpath, dirnames, filenames) in walk(path):
+            files.append(filenames)
+
+        for file_num in range(Position, Position + batch_size):
+            img = Image.open(path+"/{0}".format(files[0][file_num]))
+            images.append(np.array(img))
+
+        return np.array(images)
 
     def Get_Batch_Targets(Position):
         PATH = "D:\Dataset\OpenImage/annotations\Stage1"
@@ -66,9 +80,11 @@ elif stage == 3:
                 
                 batch_targets.append(yolo_targets)
         
-        return batch_targets
+        return tf.constant(batch_targets)
                     
-    print(Get_Batch_Targets(0))
+                
+    print(tf.constant(Get_Batch_Images(0)))
+    print(Models.Yolo(num_classes=601)(tf.cast(Get_Batch_Images(0), dtype = float)))
 
 
     @tf.function
