@@ -19,9 +19,11 @@ if stage == 1:
 
 elif stage == 3:
 
-    batch_size = 2
+    batch_size = 1
     
     model = Models.Yolo(2, 601)
+
+    Loss_Func = Loss.Model_Loss(2, 601)
 
     def GetYoloPosition(posRatio):
         gridsquare = (8*posRatio)//1
@@ -39,7 +41,7 @@ elif stage == 3:
             img = Image.open(path+"/{0}".format(files[0][file_num]))
             images.append(np.array(img))
 
-        return np.array(images)
+        return tf.cast(tf.convert_to_tensor(np.array(images)), tf.float32)
 
     def Get_Batch_Targets(Position):
         PATH = "D:\Dataset\OpenImage/annotations\Stage1"
@@ -60,7 +62,7 @@ elif stage == 3:
                 for line in csv_reader:
                     xgridsquare, xgridpos = GetYoloPosition(float(line["xPos"]))
                     ygridsquare, ygridpos = GetYoloPosition(float(line["yPos"]))
-                    yolo_targets[xgridsquare, ygridsquare, 0] = xgridpos 
+                    yolo_targets[xgridsquare, ygridsquare, 0] = xgridpos
                     yolo_targets[xgridsquare, ygridsquare, 1] = ygridpos
                     yolo_targets[xgridsquare, ygridsquare, 2] = float(line["width"])
                     yolo_targets[xgridsquare, ygridsquare, 3] = float(line["height"])
@@ -80,11 +82,15 @@ elif stage == 3:
                 
                 batch_targets.append(yolo_targets)
         
-        return tf.constant(batch_targets)
+        return tf.cast(tf.convert_to_tensor(batch_targets), tf.float32)
                     
                 
-    print(tf.constant(Get_Batch_Images(0)))
-    print(Models.Yolo(num_classes=601)(tf.cast(Get_Batch_Images(0), dtype = float)))
+    Input = Get_Batch_Images(0)
+    Target = Get_Batch_Targets(0)
+    output = model(Input)
+    for i in range(len(output)):
+        print(output[i])
+        Loss_Func(output[i],Target[i])
 
 
     @tf.function
