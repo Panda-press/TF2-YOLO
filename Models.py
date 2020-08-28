@@ -69,6 +69,7 @@ def Output(num_boxes, num_classes):
     x = layers.Flatten()(x)
     x = layers.Dense(1024)(x)
     x = layers.Dense(8*8*(num_boxes*(2+2+1)+num_classes))(x)
+    #print((2+2+1) * num_boxes + num_classes)
     x = layers.Reshape(target_shape = (8, 8, (2+2+1) * num_boxes + num_classes))(x)
 
     model = keras.Model(inputs = inputs, outputs = x, name = 'Output')

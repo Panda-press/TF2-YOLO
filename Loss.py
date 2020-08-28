@@ -1,7 +1,6 @@
 import tensorflow as tf
 
 
-
 def IOU(box1, box2):
     x1 = tf.reduce_max(tf.convert_to_tensor([box1[0], box2[0]]))
     y1 = tf.reduce_max(tf.convert_to_tensor([box1[1], box2[1]]))
@@ -53,8 +52,8 @@ def Model_Loss(bboxes, num_classes):
         target_y = tf.tile(target_y, [1,1, bboxes])
         target_w = tf.tile(target_w, [1,1, bboxes])
         target_h = tf.tile(target_h, [1,1, bboxes])
-        print(target_boxes)
-        print(target_x)
+        #print(target_boxes)
+        #print(target_x)
 
         object_appears_mask = tf.zeros_like(class_prob[0])
         bbox_responsible = tf.zeros_like(box_x)
@@ -67,7 +66,7 @@ def Model_Loss(bboxes, num_classes):
         box2 = tf.convert_to_tensor([target_x - target_w/2, target_y - target_h/2, target_x + target_w/2, target_y + target_h/2])
         box1 = tf.convert_to_tensor([box_x - box_w/2, box_y - box_h/2, box_x + box_w/2, box_y + box_h/2])
         IOUs = IOU(box1, box2)
-        print(IOUs)
+        #print(IOUs)
 
         func = lambda x: tf.map_fn(lambda w: tf.cast(tf.reduce_max(x) == w, dtype=tf.float32), x)
         bbox_responsible = tf.map_fn(lambda x: tf.map_fn(func, x), IOUs)
@@ -105,11 +104,11 @@ def Model_Loss(bboxes, num_classes):
         class_delta = class_prob - target_class
         class_squared_error = tf.math.pow(class_delta, 2)
         class_element_loss = object_appears_mask * tf.math.reduce_sum(class_squared_error, axis = -1)
-        print(class_element_loss)
+        #print(class_element_loss)
         class_loss = tf.reduce_sum(class_element_loss)
-        print(class_loss)
+        #print(class_loss)
         loss += class_loss
-        print(loss)
+        #print(loss)
 
         return loss
 
