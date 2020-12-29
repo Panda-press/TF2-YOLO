@@ -1,7 +1,7 @@
 import tensorflow as tf
 #-------GPU Setup--------
-physical_devices = tf.config.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
+#physical_devices = tf.config.list_physical_devices('GPU')
+#tf.config.experimental.set_memory_growth(physical_devices[0], True)
 from tensorflow import keras
 from tensorflow.keras import layers
 import csv
@@ -18,21 +18,23 @@ print("Starting stage: {0}".format(stage))
 
 
 
-
-
 if stage == 1:
     model = Models.Clasifier_For_Training()
 
 
 elif stage == 3:
 
-    optimizer = tf.optimizers.RMSprop(1e-4)
+    optimizer = tf.optimizers.RMSprop(1e-5)
 
-    batch_size = 16
+    minibatch_size = 2
+    batch_size = 128
     
     model = Models.Yolo(2, 601)
 
     Loss_Func = Loss.Model_Loss(2, 601)
+
+    checkpoint = tf.train.Checkpoint(optimizer = optimizer, model = model)
+    manager = tf.train.CheckpointManager(checkpoint, directory="D:\Dataset\OpenImage/training_checkpoints", max_to_keep=5)
 
     def GetYoloPosition(posRatio):
         gridsquare = (8*posRatio)//1
@@ -93,37 +95,88 @@ elif stage == 3:
         
         return tf.cast(tf.convert_to_tensor(batch_targets), tf.float32)
                     
-                
-    Input = Get_Batch_Images(0)
-    Target = Get_Batch_Targets(0)
-    # output = model(Input)
-    # for i in range(len(output)):
-    #     print(output[i])
-    #     print(Loss_Func(output[i],Target[i]))
-
 
     @tf.function
     def TrainStep(input_images, target_outputs):
         with tf.GradientTape() as gen_tape:
-            #outputs = model(input_images)
+            
 
             loss = tf.constant(0, dtype=tf.float32)
             for i in range(len(input_images)):                
                 output = model(tf.convert_to_tensor([input_images[i]]))
                 loss += Loss_Func(output[0], target_outputs[i])
 
-            print("loss calculated")
-        #for i in range(len(ouputs))
+            #print("loss calculated")
         gradients = gen_tape.gradient(loss, model.trainable_variables)
+        
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-    for i in range(1,100):
-        print(i)
-        TrainStep(Input, Target)
+    def Train(start, end):
+        for k in range(start, end, batch_size):
+            print("Starting  batch {0}".format(k))
+            input_batch = Get_Batch_Images(k)
+            target_batch = Get_Batch_Targets(k)
+            for i in range(0, len(input_batch), minibatch_size):
+                input_minibatch = tf.convert_to_tensor(input_batch[i:i + minibatch_size])
+                target_minibatch = tf.convert_to_tensor(target_batch[i:i + minibatch_size])
+                
+                #print("Minibatch {0}".format(i))
 
-    Input = Get_Batch_Images(0)
-    Target = Get_Batch_Targets(0)
-    output = model(Input)
-    print(output[0])
-    print(Loss_Func(output[0],Target[0]))    
+                TrainStep(input_minibatch, target_minibatch)
+
+            manager.save()
+
+    # Input = Get_Batch_Images(0)
+    # Target = Get_Batch_Targets(0)
+    # output = model(tf.convert_to_tensor([Input[0]]))
+    # print(output[0])
+    # print(Loss_Func(output[0],Target[0]))  
+
+    Train(0, batch_size * 10)
+
+    # Input = Get_Batch_Images(0)
+    # Target = Get_Batch_Targets(0)
+    # output = model(tf.convert_to_tensor([Input[0]]))
+    # print(output[0])
+    # print(Loss_Func(output[0],Target[0]))  
         
+
+
+
+    # @tf.function
+    # def TrainStep(input_images, target_outputs):
+    #     gradients = tf.zeros_like(target_outputs[0])
+
+    #     for i in range(len(input_images)):    
+    #         loss = tf.constant(0, dtype=tf.float32)            
+    #         with tf.GradientTape() as gen_tape:
+    #             output = model(tf.convert_to_tensor([input_images[i]]))
+    #             loss += Loss_Func(output[0], target_outputs[i])
+
+    #         gradients += gen_tape.gradient(loss, model.trainable_variables)
+
+    #         print("loss calculated")
+    #     #for i in range(len(ouputs))
+    #     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+
+    # @tf.function
+    # def TrainStep(input_images, target_outputs):
+    #     with tf.GradientTape() as gen_tape:
+    #         #outputs = model(input_images)
+
+    #         output = model(tf.convert_to_tensor([input_images[0]]))
+    #         loss = Loss_Func(output[0], target_outputs[0])            
+    #         with gen_tape.stop_recording():
+    #             gradients = gen_tape.gradient(loss, model.trainable_variables)
+
+    #         gradients = gen_tape
+    #         for i in range(1,len(input_images)):                
+    #             output = model(tf.convert_to_tensor([input_images[i]]))
+    #             loss = Loss_Func(output[0], target_outputs[i])                
+    #             with gen_tape.stop_recording():
+    #                 gradients = tf.math.add(gradients, gen_tape.gradient(loss, model.trainable_variables))
+
+    #         print("loss calculated")
+    #         with gen_tape.stop_recording():
+    #             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
