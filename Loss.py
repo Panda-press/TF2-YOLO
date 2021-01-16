@@ -1,19 +1,29 @@
 import tensorflow as tf
 
 
+@tf.function
 def IOU(box1, box2):
-    x1 = tf.reduce_max(tf.convert_to_tensor([box1[0], box2[0]]))
-    y1 = tf.reduce_max(tf.convert_to_tensor([box1[1], box2[1]]))
-    x2 = tf.reduce_min(tf.convert_to_tensor([box1[2], box2[2]]))
-    y2 = tf.reduce_min(tf.convert_to_tensor([box1[3], box2[3]]))
+    x1 = tf.reduce_max(tf.stack([box1[0], box2[0]],axis=3),axis=-1)
+    y1 = tf.reduce_max(tf.stack([box1[1], box2[1]],axis=3),axis=-1)
+    x2 = tf.reduce_min(tf.stack([box1[2], box2[2]],axis=3),axis=-1)
+    y2 = tf.reduce_min(tf.stack([box1[3], box2[3]],axis=3),axis=-1)
+    
 
-    intersection = tf.reduce_max(tf.convert_to_tensor([0, x2 - x1])) * tf.reduce_max(tf.convert_to_tensor([0, y2 - y1]))
+    intersection = tf.reduce_max(tf.stack([tf.zeros_like(x1), x2 - x1], axis=3), axis=-1) * tf.reduce_max(tf.stack([tf.zeros_like(y1), y2 - y1], axis=3), axis=-1)
+
 
     union = (box1[2] - box1[0]) * (box1[3] - box1[1]) + (box2[2] - box2[0]) * (box2[3] - box2[1]) - intersection
 
-    iou = intersection/union
+    # tf.print("box1")
+    # tf.print(box1)
+    # tf.print("box2")
+    # tf.print(box2)
+    # tf.print("union")
+    # tf.print(union)
+    # tf.print("intersection")
+    # tf.print(intersection)
 
-    return iou
+    return tf.math.divide_no_nan(intersection, union)
 
 def Model_Loss(bboxes, num_classes):
     @tf.function
@@ -22,13 +32,19 @@ def Model_Loss(bboxes, num_classes):
         lambda_coord = tf.constant(5, dtype=tf.float32)
         lambda_noobj = tf.constant(0.5, dtype=tf.float32)
 
+        # tf.print("Targets")
+        # tf.print(Target_Output)
+        # tf.print("Model")
+        # tf.print(tf.sigmoid(Model_Output))
+
 
         box_x, box_y, box_w, box_h, objectness, class_prob = tf.split(Model_Output, [bboxes, bboxes, bboxes, bboxes, bboxes, num_classes], axis=-1)
 
-        box_x = tf.sigmoid(box_x)
+
+        box_x = tf.sigmoid(box_x)   #the activation functions that the output has to go through
         box_y = tf.sigmoid(box_y)
-        box_w = tf.exp(box_w)
-        box_h = tf.exp(box_h)
+        box_w = tf.sigmoid(box_w)
+        box_h = tf.sigmoid(box_h)
         objectness = tf.sigmoid(objectness)
         class_prob = tf.sigmoid(class_prob)
 
@@ -52,8 +68,8 @@ def Model_Loss(bboxes, num_classes):
         target_y = tf.tile(target_y, [1,1, bboxes])
         target_w = tf.tile(target_w, [1,1, bboxes])
         target_h = tf.tile(target_h, [1,1, bboxes])
-        #print(target_boxes)
-        #print(target_x)
+        # print(target_boxes)
+        # tf.print(target_x)
 
         object_appears_mask = tf.zeros_like(class_prob[0])
         bbox_responsible = tf.zeros_like(box_x)
@@ -63,13 +79,27 @@ def Model_Loss(bboxes, num_classes):
         object_appears_mask = tf.map_fn(lambda x: tf.map_fn(appears_mask_fn, x), target_x)
 
 
-        box2 = tf.convert_to_tensor([target_x - target_w/2, target_y - target_h/2, target_x + target_w/2, target_y + target_h/2])
         box1 = tf.convert_to_tensor([box_x - box_w/2, box_y - box_h/2, box_x + box_w/2, box_y + box_h/2])
-        IOUs = IOU(box1, box2)
-        #print(IOUs)
+        box2 = tf.convert_to_tensor([target_x - target_w/2, 
+                                    target_y - target_h/2, 
+                                    target_x + target_w/2, 
+                                    target_y + target_h/2])
 
-        func = lambda x: tf.map_fn(lambda w: tf.cast(tf.reduce_max(x) == w, dtype=tf.float32), x)
+        IOUs = IOU(box1, box2)
+        
+
+        # tf.print("IOUs")
+        # tf.print(IOUs)
+        # print(object_appears_mask)
+        IOUs += tf.tile(tf.reshape(object_appears_mask, [8,8,1]), [1,1, bboxes])
+
+        func = lambda x: tf.map_fn(lambda w: tf.cast(tf.reduce_max(x) == w and w != 0, dtype=tf.float32), x)
         bbox_responsible = tf.map_fn(lambda x: tf.map_fn(func, x), IOUs)
+        
+
+        #tf.print("Responisibility")
+        # tf.print(tf.reduce_max(IOUs))
+        #tf.print(bbox_responsible)
 
 
         x_delta = box_x - target_x
@@ -85,30 +115,57 @@ def Model_Loss(bboxes, num_classes):
         w_squared_error = tf.math.pow(w_delta, 2)
         h_delta = tf.math.sqrt(box_h) - tf.math.sqrt(target_h)
         h_squared_error = tf.math.pow(h_delta, 2)
-        wh_squared_error = x_squared_error + y_squared_error
+        wh_squared_error = h_squared_error + w_squared_error
         wh_loss = bbox_responsible * wh_squared_error
         loss += lambda_coord * tf.reduce_sum(wh_loss)
 
 
-        objectness_delta = objectness - bbox_responsible
-        object_squared_error = tf.math.pow(objectness_delta, 2)
+        objectness_delta = bbox_responsible - objectness
+        #tiled_bbox_responisble = tf.tile(tf.reshape(bbox_responsible, [8,8,1]), [1,1, bboxes])
+        object_error = tf.math.pow(objectness_delta, 2)
+        #object_error = tf.losses.binary_crossentropy(bbox_responsible, objectness) 
+        #print(objectness_delta)
+        #print(objec_error)
+        #loss += tf.reduce_sum(object_error)
 
-        lambda_noobj_mask = bbox_responsible - tf.ones_like(bbox_responsible)
-        lambda_noobj_mask = lambda_noobj_mask * lambda_noobj
-        lambda_noobj_mask = lambda_noobj_mask + tf.ones_like(bbox_responsible)
+        #Attempt at adjusting the weight according to the number of objectst in the target
+        #not_responsible_weighing = tf.reduce_sum(object_appears_mask) / (8*8*4)
 
-        objectness_loss = object_squared_error * lambda_noobj_mask
+        not_responsible_mask = tf.ones_like(bbox_responsible) - bbox_responsible
+
+        #Attempt to create a threashold below which deltas will be ignored
+        #func = lambda x: tf.map_fn(lambda w: tf.cast(0.5 < w, dtype=tf.float32), x)
+        #objectness_threashold = tf.map_fn(lambda x: tf.map_fn(func, x), objectness)
+
+        objectness_loss = tf.zeros_like(object_error)
+        objectness_loss += object_error * not_responsible_mask * lambda_noobj
+        #objectness_loss += object_squared_error * not_responsible_mask * not_responsible_weighing        
+        #objectness_loss += object_squared_error * not_responsible_mask * not_responsible_weighing * objectness_threashold
+        # tf.print("objectness_loss")
+        # tf.print(objectness_loss)
+        objectness_loss += object_error * bbox_responsible
         loss += tf.reduce_sum(objectness_loss)
+
+        # tf.print("objectness")
+        # tf.print(objectness)
+        # tf.print("deltas")
+        # tf.print(objectness_delta)
+        # tf.print("responsible")
+        # tf.print(bbox_responsible)
+        # tf.print("not responsible")
+        # tf.print(not_responsible_mask)
+        # tf.print("loss")
 
 
         class_delta = class_prob - target_class
         class_squared_error = tf.math.pow(class_delta, 2)
         class_element_loss = object_appears_mask * tf.math.reduce_sum(class_squared_error, axis = -1)
-        #print(class_element_loss)
         class_loss = tf.reduce_sum(class_element_loss)
-        #print(class_loss)
         loss += class_loss
         #print(loss)
+
+        tf.print("loss")
+        tf.print(loss)
 
         return loss
 
