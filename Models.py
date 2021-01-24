@@ -55,6 +55,27 @@ def Darknet():
     model = keras.Model(inputs = inputs, outputs = x, name = 'Darknet')
     return model
 
+def Darknet_Tiny():
+    inputs = keras.Input(shape = (512,512,3))
+    x = inputs
+    x = Add_Convolutional_Layer(x, 32, 3)
+    x = layers.MaxPool2D(pool_size=(2,2), padding='same')(x)
+    x = Add_Convolutional_Layer(x, 64, 3)
+    x = layers.MaxPool2D(pool_size=(2,2), padding='same')(x)
+    x = Add_Convolutional_Layer(x, 128, 3)
+    x = layers.MaxPool2D(pool_size=(2,2), padding='same')(x)
+    x = Add_Convolutional_Layer(x, 256, 3)
+    x = layers.MaxPool2D(pool_size=(2,2), padding='same')(x)
+    x = Add_Convolutional_Layer(x, 512, 3)
+    x = layers.MaxPool2D(pool_size=(2,2), padding='same')(x)
+    x = Add_Convolutional_Layer(x, 1024, 3)
+    x = layers.MaxPool2D(pool_size=(2,2), padding='same')(x)
+    
+    
+    model = keras.Model(inputs = inputs, outputs = x, name = 'Darknet_Tiny')
+    return model
+
+
 def Clasifier_For_Training(num_classes):
     inputs = keras.Input(shape = (8, 8, 1024))
     x = inputs
@@ -69,21 +90,25 @@ def Output(num_boxes, num_classes):
     x = layers.Flatten()(x)
     x = layers.Dense(1024)(x)
     x = layers.Dense(8*8*(num_boxes*(2+2+1)+num_classes))(x)
-    #print((2+2+1) * num_boxes + num_classes)
     x = layers.Reshape(target_shape = (8, 8, (2+2+1) * num_boxes + num_classes))(x)
+    # x = Add_Convolutional_Layer(x, 1024, 3)
+    # x = Add_Convolutional_Layer(x, num_boxes*(2+2+1)+num_classes, 1, batch_norm=False)
 
     model = keras.Model(inputs = inputs, outputs = x, name = 'Output')
     return model
 
 
-def Yolo(num_boxes = NUM_BOXES, num_classes = NUM_CLASSES, darknet = Darknet()):
+def Yolo(num_boxes = NUM_BOXES, num_classes = NUM_CLASSES, darknet = Darknet(), name = 'YOLO'):
     inputs = keras.Input(shape = (512, 512, 3))
     x = inputs
     x = darknet(x)
     x = Output(num_boxes, num_classes)(x)
 
-    model = keras.Model(inputs = inputs, outputs = x, name = 'YOLO')
+    model = keras.Model(inputs = inputs, outputs = x, name = name)
     return model
+
+def Yolo_Tiny(num_boxes = NUM_BOXES, num_classes = NUM_CLASSES, darknet = Darknet_Tiny(), name = 'YOLO_Tiny'):
+    return Yolo(darknet = darknet, name = name)
 
 
 yolo = Yolo(NUM_BOXES, NUM_CLASSES)
