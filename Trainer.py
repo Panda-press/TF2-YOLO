@@ -1,15 +1,21 @@
 import tensorflow as tf
+import tensorflow_addons as tfa
 #-------GPU Setup--------
-#physical_devices = tf.config.list_physical_devices('GPU')
-#tf.config.experimental.set_memory_growth(physical_devices[0], True)
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+for physical_device in physical_devices:
+    tf.config.experimental.set_memory_growth(physical_device, True)
 from tensorflow import keras
 from tensorflow.keras import layers
 import csv
 import numpy as np
 from os import walk
 import Models
-import Loss
+import Loss as Loss
+import ResultsDisplay
 from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.image as mpimg
 
 
 stage = 3
@@ -24,7 +30,7 @@ if stage == 1:
 
 elif stage == 3:
 
-    optimizer = tf.optimizers.RMSprop(1e-5)
+    optimizer = tf.optimizers.RMSprop(1e-4)
 
     minibatch_size = 2
     batch_size = 128
@@ -108,6 +114,8 @@ elif stage == 3:
 
             #print("loss calculated")
         gradients = gen_tape.gradient(loss, model.trainable_variables)
+        #tf.print("gradients")
+        #tf.print(gradients)
         
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
@@ -126,57 +134,45 @@ elif stage == 3:
 
             manager.save()
 
-    # Input = Get_Batch_Images(0)
-    # Target = Get_Batch_Targets(0)
-    # output = model(tf.convert_to_tensor([Input[0]]))
-    # print(output[0])
-    # print(Loss_Func(output[0],Target[0]))  
-
-    Train(0, batch_size * 10)
-
-    # Input = Get_Batch_Images(0)
-    # Target = Get_Batch_Targets(0)
-    # output = model(tf.convert_to_tensor([Input[0]]))
-    # print(output[0])
-    # print(Loss_Func(output[0],Target[0]))  
-        
 
 
+    Input = Get_Batch_Images(0)
+    Target = Get_Batch_Targets(0)
 
-    # @tf.function
-    # def TrainStep(input_images, target_outputs):
-    #     gradients = tf.zeros_like(target_outputs[0])
+    # print(tf.shape(Input))
+    
+    output = model(tf.convert_to_tensor([Input[0]]))
+    tf.print("output")
+    tf.print(tf.shape(output))
+    tf.print(output)
 
-    #     for i in range(len(input_images)):    
-    #         loss = tf.constant(0, dtype=tf.float32)            
-    #         with tf.GradientTape() as gen_tape:
-    #             output = model(tf.convert_to_tensor([input_images[i]]))
-    #             loss += Loss_Func(output[0], target_outputs[i])
+    # for i in range(0,100):
+    #     print(i)
+    #     TrainStep(tf.convert_to_tensor([Input[0]]), tf.convert_to_tensor([Target[0]]))
 
-    #         gradients += gen_tape.gradient(loss, model.trainable_variables)
-
-    #         print("loss calculated")
-    #     #for i in range(len(ouputs))
-    #     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    Train(0,batch_size * 10)
 
 
-    # @tf.function
-    # def TrainStep(input_images, target_outputs):
-    #     with tf.GradientTape() as gen_tape:
-    #         #outputs = model(input_images)
+    #model.fit(Input,Target,2)
 
-    #         output = model(tf.convert_to_tensor([input_images[0]]))
-    #         loss = Loss_Func(output[0], target_outputs[0])            
-    #         with gen_tape.stop_recording():
-    #             gradients = gen_tape.gradient(loss, model.trainable_variables)
+    output = model(tf.convert_to_tensor([Input[0]]))
+    # print(output)
+    # tf.print("loss")
+    # tf.print(Loss_Func(output[0],Target[0]))  
+    # tf.print("output")
+    # tf.print(tf.sigmoid(output)[0,0,2,0:6])    
+    # tf.print(tf.exp(output)[0,0,2,0:6])
+    # tf.print("target")
+    # tf.print(Target[0,0,2,0:6])
 
-    #         gradients = gen_tape
-    #         for i in range(1,len(input_images)):                
-    #             output = model(tf.convert_to_tensor([input_images[i]]))
-    #             loss = Loss_Func(output[0], target_outputs[i])                
-    #             with gen_tape.stop_recording():
-    #                 gradients = tf.math.add(gradients, gen_tape.gradient(loss, model.trainable_variables))
+    path = "D:\Dataset\OpenImage/train/train_0_p/000002b66c9c498e.jpg"
+    img = mpimg.imread(path)
 
-    #         print("loss calculated")
-    #         with gen_tape.stop_recording():
-    #             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    results = ResultsDisplay.ConvertModelOutput(output, 601)
+
+    ResultsDisplay.Bbox.Plot(results)
+
+    plt.imshow(img)
+
+    plt.show()
+
