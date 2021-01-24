@@ -31,6 +31,7 @@ def Model_Loss(bboxes, num_classes):
         loss = tf.constant(0, dtype=tf.float32)
         lambda_coord = tf.constant(5, dtype=tf.float32)
         lambda_noobj = tf.constant(0.5, dtype=tf.float32)
+        iou_threashhold = tf.constant(0.5, dtype=tf.float32)
 
         # tf.print("Targets")
         # tf.print(Target_Output)
@@ -120,27 +121,24 @@ def Model_Loss(bboxes, num_classes):
         loss += lambda_coord * tf.reduce_sum(wh_loss)
 
 
-        objectness_delta = bbox_responsible - objectness
+        #objectness_delta = bbox_responsible - objectness
         #tiled_bbox_responisble = tf.tile(tf.reshape(bbox_responsible, [8,8,1]), [1,1, bboxes])
-        object_error = tf.math.pow(objectness_delta, 2)
-        #object_error = tf.losses.binary_crossentropy(bbox_responsible, objectness) 
+        #object_error = tf.math.pow(objectness_delta, 2)
+        object_error = tf.losses.binary_crossentropy(tf.reshape(bbox_responsible, [8,8,2,1]), tf.reshape(objectness, [8,8,2,1])) 
         #print(objectness_delta)
-        #print(objec_error)
+        #print(object_error)
         #loss += tf.reduce_sum(object_error)
 
-        #Attempt at adjusting the weight according to the number of objectst in the target
-        #not_responsible_weighing = tf.reduce_sum(object_appears_mask) / (8*8*4)
 
         not_responsible_mask = tf.ones_like(bbox_responsible) - bbox_responsible
 
-        #Attempt to create a threashold below which deltas will be ignored
-        #func = lambda x: tf.map_fn(lambda w: tf.cast(0.5 < w, dtype=tf.float32), x)
-        #objectness_threashold = tf.map_fn(lambda x: tf.map_fn(func, x), objectness)
+        iou_threashhold_mask = tf.cast(iou_threashhold > IOUs,dtype=tf.float32)
+
+
+        tiled_appears_mask = tf.tile(tf.reshape(object_appears_mask, [8,8,1]), [1,1,2])
 
         objectness_loss = tf.zeros_like(object_error)
-        objectness_loss += object_error * not_responsible_mask * lambda_noobj
-        #objectness_loss += object_squared_error * not_responsible_mask * not_responsible_weighing        
-        #objectness_loss += object_squared_error * not_responsible_mask * not_responsible_weighing * objectness_threashold
+        objectness_loss += object_error * not_responsible_mask * iou_threashhold_mask
         # tf.print("objectness_loss")
         # tf.print(objectness_loss)
         objectness_loss += object_error * bbox_responsible
